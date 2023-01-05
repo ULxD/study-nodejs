@@ -1,34 +1,69 @@
-const { response } = require('express');
 const express = require('express');
+const { v4: uuidV4 } = require('uuid');
 
 const app = express();
 
-app.use(express.json())
+app.use(express.json());
 
-app.get('/courses', (req, res) => {
-    const query = req.query;
-    console.log(query);
-    return res.json(["Curso 1","Curso 2","Curso 3"])    
+const customers = []
+
+function verifyIfExistsAccountCPF(req,res,next){
+    const { cpf } = req.headers;
+
+    const customer = customers.find(customer => customer.cpf === cpf); 
+
+    if(!customer){
+        return res.status(404).json({error: "Customer not found"});
+    }
+
+    req.customer = customer;
+
+    return next();
+}
+
+app.post("/account",   (req, res) => {
+
+    const { cpf, name } = req.body;
+
+    const customerAlreadyExists = customers.some((customer)=> customer.cpf === cpf)
+
+    if (customerAlreadyExists){
+        return res.status(400).json({error: "Customer already exists"});
+    }
+
+    customers.push({
+        cpf,
+        name,
+        id: uuidV4(),
+        statement: [],
+    })
+
+    return res.status(201).send();
+
+})
+
+app.get("/statement",verifyIfExistsAccountCPF, (req, res) => {
+    const { customer } = req;
+    return res.json(customer.statement);
 });
 
-app.post('/courses', (req, res) => {
-    const body = req.body;
-    console.log(body);
-    return res.json(["Curso 1","Curso 2","Curso 3","Curso 4"]) 
-});
+app.post("/deposit",verifyIfExistsAccountCPF, (req,res)=>{
+    const { description, amount } = req.body;
 
-app.put('/courses/:id', (req, res) => {
-    const { id } = req.params;
-    console.log(id);
-    return res.json(["Curso 6","Curso 2","Curso 3","Curso 4"]) 
-});
+    console.log(req.body.description)
 
-app.patch('/courses/:id', (req, res) => {
-    return res.json(["Curso 6","Curso 10","Curso 3","Curso 4"]) 
-});
+    const { customer } = req;
 
-app.delete('/courses/:id', (req, res) => {
-    return res.json(["Curso 3","Curso 4"]) 
+    const statementOperation = {
+        description,
+        amount,
+        created_at: new Date(),
+        type: "credit"
+    }
+
+    customer.statement.push(statementOperation);
+
+    return res.status(201).send();
 })
 
 app.listen(3333);
